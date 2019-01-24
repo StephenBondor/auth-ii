@@ -1,7 +1,7 @@
 import React from 'react';
 import {withRouter} from 'react-router-dom';
-import {login} from '../actions';
 import {connect} from 'react-redux';
+import {login} from '../actions';
 
 class Signin extends React.Component {
 	state = {
@@ -20,8 +20,11 @@ class Signin extends React.Component {
 	};
 
 	render() {
+		if (this.props.self !== '')
+			return <div>Logged in as {this.props.self}</div>;
 		return (
 			<form onSubmit={this.handleSubmit}>
+				<h2>Sign IN!</h2>
 				<div>
 					<label htmlFor=''>Username</label>
 					<input
@@ -50,7 +53,7 @@ class Signin extends React.Component {
 
 export default withRouter(
 	connect(
-		({logingIn}) => ({logingIn}),
+		({logingIn, self}) => ({logingIn, self}),
 		{login}
 	)(Signin)
 );
