@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const knex = require('knex');
 const knexConfig = require('./knexfile.js');
 const morgan = require('morgan');
+const cors = require('cors');
 
 //declarations
 const server = express();
@@ -16,6 +17,7 @@ const db = knex(knexConfig.development);
 server.use(helmet());
 server.use(express.json());
 server.use(morgan());
+server.use(cors());
 function lock(req, res, next) {
 	const token = req.headers.authorization;
 	if (token) {
@@ -31,11 +33,21 @@ function lock(req, res, next) {
 		res.status(401).json({message: 'no token provided'});
 	}
 }
+function checkRole(role) {
+	return function(req, res, next) {
+		if (req.decodedToken.roles.includes(role)) {
+			next();
+		} else {
+			res.status(403).json({message: `you need to be an ${role}`});
+		}
+	};
+}
 
 //helpers
 function generateToken(user) {
 	const payload = {
-		username: user.username
+		username: user.username,
+		roles: ['sales', 'admin']
 	};
 	const secret = process.env.JWT_SECRET; //i do not understand how this line works
 	const options = {expiresIn: '10m'};
@@ -44,7 +56,7 @@ function generateToken(user) {
 }
 
 //Endpoints
-server.get('/', (req, res) => {
+server.get('/api', (req, res) => {
 	res.send('API running');
 });
 
@@ -71,7 +83,7 @@ server.post('/api/login', (req, res) => {
 			if (user && bcrypt.compareSync(creds.password, user.password)) {
 				const token = generateToken(user);
 				res.status(200).json({
-					message: `Welcome ${user.username}`,
+					loggedInAs: `${user.username}`,
 					token
 				});
 			} else {
@@ -81,14 +93,29 @@ server.post('/api/login', (req, res) => {
 		.catch(err => res.status(500).json(err));
 });
 
-server.get('/api/users', lock, (req, res) => {
+server.get('/api/user/me', lock, (req, res) => {
 	db('users')
 		.select('id', 'username')
-		.then(users => {
-			res.status(200).json({users, decodedToken: req.decodedToken});
+		.where({username: req.decodedToken.username})
+		.first()
+		.then(user => {
+			res.status(200).json({user, decodedToken: req.decodedToken});
 		})
 		.catch(err => res.status(500).json(err));
 });
+
+server.get(
+	'/api/users',
+	// lock, checkRole('admin'),
+	(req, res) => {
+		db('users')
+			.select('id', 'username')
+			.then(user => {
+				res.status(200).json({user, decodedToken: req.decodedToken});
+			})
+			.catch(err => res.status(500).json(err));
+	}
+);
 
 //Listening
 const port = 3300;
